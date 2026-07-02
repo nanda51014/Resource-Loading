@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P6 Resource Loader — Tool</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="data/productivity.js"></script>
+<style>
+:root{--dark:#112528;--dark2:#203A3E;--orange:#EF6925;--orange2:#D2600F;--cream:#EBE3DC;--pale:#EAF2F4;--tan:#DCCEC2;--grey:#5B493C;--red:#FF0000;}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;}
+body{background:var(--cream);color:var(--dark);}
+header{background:var(--dark);color:#fff;padding:16px 32px;border-bottom:4px solid var(--orange);display:flex;justify-content:space-between;align-items:center;}
+header h1{font-size:20px;font-weight:700;}
+header a{color:var(--orange);text-decoration:none;font-size:14px;}
+main{max-width:1250px;margin:0 auto;padding:24px 20px 80px;}
+.card{background:#fff;border:1px solid var(--tan);border-radius:8px;padding:20px 24px;margin-bottom:20px;}
+.card h2{font-size:16px;color:var(--dark);margin-bottom:12px;border-left:4px solid var(--orange);padding-left:10px;}
+.controls{display:flex;flex-wrap:wrap;gap:18px;align-items:end;}
+.ctrl label{display:block;font-size:12px;color:var(--grey);margin-bottom:4px;font-weight:600;}
+.ctrl input,.ctrl select{padding:8px 10px;border:1px solid var(--tan);border-radius:5px;font-size:14px;background:#fff;}
+button{background:var(--orange);color:#fff;border:none;padding:10px 22px;border-radius:5px;font-size:14px;font-weight:700;cursor:pointer;}
+button:hover{background:var(--orange2);}
+button.sec{background:var(--dark2);}
+button:disabled{background:#aaa;cursor:not-allowed;}
+.kpis{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0 4px;}
+.kpi{flex:1;min-width:160px;background:var(--pale);border:1px solid var(--tan);border-radius:8px;padding:12px 16px;text-align:center;}
+.kpi .v{font-size:26px;font-weight:800;color:var(--orange);}
+.kpi .l{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--grey);}
+.kpi .c{font-size:11px;color:var(--grey);}
+table{border-collapse:collapse;width:100%;font-size:12px;margin-top:8px;}
+th{background:var(--dark);color:#fff;padding:6px 8px;text-align:left;}
+td{border:1px solid var(--tan);padding:5px 8px;background:#fff;}
+tr:nth-child(even) td{background:var(--pale);}
+.flag{color:var(--red);font-weight:600;}
+.warn{background:#FFF4E8;border:1px solid var(--orange);border-radius:6px;padding:10px 14px;font-size:13px;margin:10px 0;}
+.hidden{display:none;}
+canvas{background:#fff;}
+.scroll{max-height:340px;overflow:auto;border:1px solid var(--tan);}
+.small{font-size:12px;color:var(--grey);margin-top:8px;}
+footer{background:var(--dark);color:#c8d4d6;text-align:center;font-size:12px;padding:14px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>P6 RESOURCE LOADER <span style="color:var(--orange)">— TOOL</span></h1>
+  <a href="index.html">&larr; Back to overview</a>
+</header>
+<main>
+
+<div class="card">
+  <h2>1 &nbsp;Load activities</h2>
+  <p class="small" style="margin-bottom:12px">Input: your activity list (Excel) with columns
+  <b>Activity ID, Activity Name, BOQ Code (Rak-BOQ), Activity Code, Qty, Unit, Duration, Start, Finish</b>.
+  Header row is auto-detected; WBS band rows and activities without an activity code are ignored.
+  <b>Your dates and durations govern</b> — the tool never changes them. Histograms are time-phased over your
+  Start–Finish window, loaded at 1 crew's work content (Qty ÷ Rate/day). Where the given duration differs from the
+  required time at 1 crew by more than the tolerance — <b>either way</b> — the activity is flagged
+  <b>SHORT</b> or <b>LONG</b>; nothing is adjusted.</p>
+  <div class="controls">
+    <div class="ctrl"><label>Activity file (.xlsx / .xls)</label><input type="file" id="file" accept=".xlsx,.xls"></div>
+    <div class="ctrl"><label>Calendar</label><select id="cal"><option value="6">6-day (Mon–Sat)</option><option value="7">7-day</option><option value="5">5-day (Mon–Fri)</option></select></div>
+    <div class="ctrl"><label>Hours / day</label><input type="number" id="hrs" value="8" min="1" max="12" style="width:80px"></div>
+    <div class="ctrl"><label>Tolerance ± (%)</label><input type="number" id="tolFlag" value="20" min="0" max="100" step="1" style="width:80px"></div>
+    <div class="ctrl"><button id="run" disabled>Process</button></div>
+  </div>
+  <div id="loadMsg" class="small"></div>
+</div>
+
+<div id="results" class="hidden">
+<div class="card">
+  <h2>2 &nbsp;Results summary</h2>
+  <div class="kpis">
+    <div class="kpi"><div class="l">Activities read</div><div class="v" id="kTotal">–</div><div class="c" id="kIgnored"></div></div>
+    <div class="kpi"><div class="l">Matched to productivity</div><div class="v" id="kMatched">–</div><div class="c" id="kMatchedPct"></div></div>
+    <div class="kpi"><div class="l">Issues / no rate</div><div class="v" id="kUnmatched" style="color:var(--red)">–</div><div class="c">listed below — no numbers invented</div></div>
+    <div class="kpi"><div class="l">Peak manpower</div><div class="v" id="kPeakMan">–</div><div class="c" id="kPeakManM"></div></div>
+    <div class="kpi"><div class="l">Total man-days</div><div class="v" id="kManDays">–</div><div class="c">work content (Qty ÷ Rate) at 1 crew</div></div>
+  </div>
+  <div id="warnings"></div>
+</div>
+
+<div class="card">
+  <h2>3 &nbsp;Manpower histogram <span style="font-weight:400;font-size:12px;color:var(--grey)">(average daily manpower per month, split by trade)</span></h2>
+  <canvas id="manChart" height="110"></canvas>
+</div>
+<div class="card">
+  <h2>4 &nbsp;Equipment histogram <span style="font-weight:400;font-size:12px;color:var(--grey)">(average daily equipment per month, split by type)</span></h2>
+  <canvas id="eqpChart" height="110"></canvas>
+</div>
+
+<div class="card">
+  <h2>5 &nbsp;Downloads</h2>
+  <div class="controls">
+    <button id="dlDur">Duration check (.xlsx)</button>
+    <button id="dlBackup">Loading backup (.xlsx)</button>
+    <button id="dlP6">P6 import file (.xls — TASKRSRC)</button>
+    <button id="dlHist" class="sec">Histogram data (.xlsx)</button>
+    <button id="dlIssues" class="sec">Issues register (.xlsx)</button>
+  </div>
+  <p class="small">Duration check: given vs required duration at one crew (Qty ÷ Rate/day), variance both ways flagged
+  beyond the tolerance, never adjusted. <b>Loading backup:</b> the full calculation chain per activity — qty, rate &amp;
+  source ref, crew make-up, required vs given duration, budgeted hours per trade and equipment type — with <b>live
+  formulas</b>, so the derivation is auditable. The P6 file follows the standard P6 “Export to Excel”
+  resource-assignment layout (sheets <b>TASKRSRC</b> + <b>RSRC</b>, internal field names in row 1, captions in row 2).
+  Budgeted Units = crew make-up × (Qty ÷ Rate/day) × hours/day — work content at one crew, independent of the window.
+  Verify the first import against a copy of your project.</p>
+</div>
+
+<div class="card">
+  <h2>6 &nbsp;Review flags <span style="font-weight:400;font-size:12px;color:var(--grey)">(your call — nothing has been adjusted silently)</span></h2>
+  <div id="flagTables"></div>
+</div>
+</div>
+</main>
+<footer>P6 Resource Loader · Rev 3 (02-Jul-26) · Productivity basis: Consolidated_Productivity Rev 1 — P1 governs all conflicts (exception: MSE panels, P2 15/day) · Input dates/durations govern; units = work content (Qty ÷ Rate) at 1 crew; variance outside ±tolerance flagged SHORT/LONG · Skilled Labour merged into Labour</footer>
+
+<script>
+// ---- dependency guard: fail loudly, not silently ----
+(function(){
+  const miss = [];
+  if (typeof XLSX === "undefined") miss.push("SheetJS (xlsx.full.min.js from cdnjs.cloudflare.com)");
+  if (typeof Chart === "undefined") miss.push("Chart.js (from cdnjs.cloudflare.com)");
+  if (typeof PRODUCTIVITY_DATA === "undefined") miss.push("data/productivity.js — tool.html must sit next to its <b>data</b> folder");
+  if (miss.length) {
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("loadMsg").innerHTML =
+        "<span class='flag'>Cannot start — failed to load: " + miss.join("; ") +
+        ".</span><br>If cdnjs is blocked on your network, tell me and I'll embed the libraries into the file instead.";
+    });
+    throw new Error("Missing dependencies: " + miss.join(", "));
+  }
+})();
+window.addEventListener("error", e => {
+  const el = document.getElementById("loadMsg");
+  if (el) el.innerHTML = "<span class='flag'>Script error: " + (e.message || e.error) + "</span>";
+});
+
+const D = PRODUCTIVITY_DATA;
+const lookup = {};       // "BOQ|CODE" -> rate row (P1 first, then P2)
+const lookupCode = {};   // "CODE" -> rate row
+for (const r of D.rates) {
+  if (r.code) {
+    const k = (r.boq + "|" + r.code).toUpperCase();
+    if (!(k in lookup)) lookup[k] = r;
+    const kc = r.code.toUpperCase();
+    if (!(kc in lookupCode)) lookupCode[kc] = r;
+  }
+}
+const mapBGUP = {};      // "BOQ|CODE" -> mapping entry
+for (const m of D.bgUpMapping) mapBGUP[(m.boq + "|" + m.code).toUpperCase()] = m;
+
+let activities = null, model = null, noCodeCount = 0;
+
+function excelDate(v) {
+  if (v == null || v === "") return null;
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  if (typeof v === "number") { const d = XLSX.SSF.parse_date_code(v); return d ? new Date(d.y, d.m-1, d.d) : null; }
+  const s = String(v).trim().replace(/\s*[AP]$/i,"").replace(/[*]/g,"");
+  const m = s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2,4})/);
+  if (m) { const mo = "janfebmaraprmayjunjulaugsepoctnovdec".indexOf(m[2].toLowerCase())/3;
+    let y = +m[3]; if (y < 100) y += 2000; return new Date(y, mo, +m[1]); }
+  const d = new Date(s); return isNaN(d) ? null : d;
+}
+
+document.getElementById("file").addEventListener("change", e => {
+  const f = e.target.files[0];
+  if (!f) { document.getElementById("loadMsg").innerHTML = "<span class='flag'>No file selected.</span>"; return; }
+  document.getElementById("loadMsg").innerHTML = "Reading <b>" + f.name + "</b>…";
+  const rd = new FileReader();
+  rd.onerror = () => { document.getElementById("loadMsg").innerHTML = "<span class='flag'>Could not read " + f.name + " — is it open in Excel? Close it and re-select.</span>"; };
+  rd.onload = ev => {
+   try {
+    const wb = XLSX.read(ev.target.result, {type:"array", cellDates:true});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+    let hi = -1, cmap = {};
+    for (let i = 0; i < Math.min(rows.length, 20); i++) {
+      const low = rows[i].map(c => c == null ? "" : String(c).toLowerCase().trim());
+      if (low.some(c => c.includes("activity id")) && low.some(c => c.includes("activity name"))) {
+        hi = i;
+        low.forEach((c, j) => {
+          if (c.includes("activity id")) cmap.id = j;
+          else if (c.includes("activity name")) cmap.name = j;
+          else if (c.includes("boq")) cmap.boq = j;
+          else if (c.includes("activity code")) cmap.code = j;
+          else if (c === "qty" || c.includes("quantity") || c.includes("budgeted qty")) cmap.qty = j;
+          else if (c === "unit" || c.includes("unit of measure")) cmap.unit = j;
+          else if (c === "start" || c.includes("start")) { if (cmap.start === undefined) cmap.start = j; }
+          else if (c === "finish" || c.includes("finish")) { if (cmap.fin === undefined) cmap.fin = j; }
+          else if (c.includes("duration")) { if (cmap.dur === undefined) cmap.dur = j; }
+        });
+        break;
+      }
+    }
+    if (hi < 0) { document.getElementById("loadMsg").innerHTML = "<span class='flag'>Header row not found — file must contain 'Activity ID' and 'Activity Name' columns.</span>"; return; }
+    activities = []; noCodeCount = 0;
+    for (let i = hi+1; i < rows.length; i++) {
+      const r = rows[i];
+      const id = r[cmap.id];
+      if (id == null) continue;
+      const ids = String(id).trim();
+      if (!ids || /\s/.test(ids) || !ids.includes("-")) continue;  // skip WBS bands
+      const code = cmap.code != null && r[cmap.code] ? String(r[cmap.code]).trim() : "";
+      if (!code) { noCodeCount++; continue; }  // no activity code — ignored per instruction 02-Jul-26
+      activities.push({
+        id: ids, name: r[cmap.name] ? String(r[cmap.name]).trim() : "",
+        boq: cmap.boq != null && r[cmap.boq] ? String(r[cmap.boq]).trim() : "",
+        code,
+        qty: cmap.qty != null && r[cmap.qty] != null && r[cmap.qty] !== "" ? Number(r[cmap.qty]) : null,
+        unit: cmap.unit != null && r[cmap.unit] ? String(r[cmap.unit]).trim() : "",
+        dur: cmap.dur != null && r[cmap.dur] != null && r[cmap.dur] !== "" ? Number(String(r[cmap.dur]).replace(/[^\d.]/g,"")) : null,
+        start: cmap.start != null ? excelDate(r[cmap.start]) : null,
+        fin: cmap.fin != null ? excelDate(r[cmap.fin]) : null
+      });
+    }
+    const withDates = activities.filter(a => a.start && (a.fin || a.dur)).length;
+    document.getElementById("loadMsg").innerHTML =
+      `Read <b>${activities.length}</b> activities (WBS bands skipped; <b>${noCodeCount}</b> without activity code ignored). With dates/duration for time-phasing: <b>${withDates}</b>.` +
+      (withDates === 0 ? " <span class='flag'>No Start+Finish/Duration found — histograms need them; P6 units and the duration check will still be produced where possible.</span>" : "");
+    document.getElementById("run").disabled = false;
+   } catch (err) {
+    document.getElementById("loadMsg").innerHTML = "<span class='flag'>Failed to parse " + f.name + ": " + err.message + "</span>";
+   }
+  };
+  rd.readAsArrayBuffer(f);
+});
+
+function workdays(a, b, cal) {
+  let n = 0; const d = new Date(a);
+  while (d <= b) { const w = d.getDay();
+    if (cal === 7 || (cal === 6 && w !== 0) || (cal === 5 && w !== 0 && w !== 6)) n++;
+    d.setDate(d.getDate()+1); }
+  return Math.max(n, 1);
+}
+const mKey = d => d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+const mLabel = k => { const [y,m] = k.split("-"); return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m-1] + "-" + y.slice(2); };
+
+const isWorkday = (d, cal) => { const w = d.getDay(); return cal === 7 || (cal === 6 && w !== 0) || (cal === 5 && w !== 0 && w !== 6); };
+function addWorkdays(start, n, cal) {  // finish date after consuming n workdays (start counts if a workday)
+  const d = new Date(start); let left = n;
+  for (;;) { if (isWorkday(d, cal)) { left--; if (left <= 0) return d; } d.setDate(d.getDate()+1); }
+}
+
+document.getElementById("run").addEventListener("click", () => {
+  const cal = +document.getElementById("cal").value;
+  const hrs = +document.getElementById("hrs").value;
+  const tol = +document.getElementById("tolFlag").value;
+  const unmatched = [], noQty = [], noStart = [], durVar = [], gapMapped = [];
+  const manDaysByMonthTrade = {}, eqpDaysByMonthType = {}, wdByMonth = {};
+  const assignments = [], durations = [];
+  let matched = 0;
+
+  for (const a of activities) {
+    const kb = (a.boq + "|" + a.code).toUpperCase(), kc = a.code.toUpperCase();
+    let rate = lookup[kb] || lookupCode[kc] || null;
+    let mapNote = "";
+    if (!rate && mapBGUP[kb]) {
+      const m = mapBGUP[kb];
+      if (m.status === "GAP") { gapMapped.push({...a, reason:"Mapping GAP: " + m.note}); continue; }
+      const first = m.mapTo.split(",")[0].trim().split(" ")[0];
+      rate = lookupCode[first.toUpperCase()] || null;
+      mapNote = "via DRAFT BG/UP mapping → " + first + " (confirm)";
+    }
+    if (!rate) { unmatched.push({...a, reason:"Code not in productivity table"}); continue; }
+    matched++;
+    if (rate.rate == null || rate.rate <= 0) { noQty.push({...a, reason:"Rate is level-of-effort ('"+(rate.rateText||"")+"') — duration & load manual"}); continue; }
+    if (a.qty == null || isNaN(a.qty) || a.qty <= 0) { noQty.push({...a, reason:"No quantity — duration & load skipped"}); continue; }
+
+    // REV 2 METHODOLOGY (per Nandakumar 02-Jul-26): input Duration/Start/Finish GOVERN — never changed.
+    // Required duration at 1 crew = Qty ÷ Rate/day. Budgeted units = work content (Qty ÷ Rate) — user's call 02-Jul-26.
+    const reqDur = a.qty / rate.rate;                 // required workdays at 1 crew, raw
+
+    // Budgeted units = crew make-up × required duration × hrs — work content, independent of the window
+    for (const [t,v] of Object.entries(rate.labour || {})) assignments.push({task:a.id, res:t, kind:"L", units:+(v*reqDur*hrs).toFixed(2), note:mapNote});
+    for (const [t,v] of Object.entries(rate.equipment || {})) assignments.push({task:a.id, res:t, kind:"E", units:+(v*reqDur*hrs).toFixed(2), note:mapNote});
+
+    // Given duration: Duration column first; else derived from Start–Finish on the selected calendar
+    let givenWd = a.dur != null && a.dur > 0 ? a.dur : (a.start && a.fin ? workdays(a.start, a.fin, cal) : null);
+    const varPct = givenWd != null ? +((givenWd - reqDur) / reqDur * 100).toFixed(1) : null;
+    // Flag BOTH directions (per Nandakumar 02-Jul-26): outside ± tolerance
+    const flag = givenWd == null ? "NO DURATION GIVEN"
+               : givenWd < reqDur * (1 - tol/100) ? "SHORT"
+               : givenWd > reqDur * (1 + tol/100) ? "LONG" : "";
+    durations.push({id:a.id, name:a.name, boq:a.boq, code:a.code, qty:a.qty, unit:a.unit,
+                    tblUnit:rate.unit, rateDay:rate.rate, src:rate.source||"", ref:rate.ref||"",
+                    labour:rate.labour||{}, equipment:rate.equipment||{},
+                    reqDur:+reqDur.toFixed(2),
+                    givenWd: givenWd != null ? +givenWd.toFixed(2) : "", varPct: varPct ?? "",
+                    flag, note:mapNote});
+    if (flag === "SHORT" || flag === "LONG")
+      durVar.push({id:a.id, name:a.name, qty:a.qty, unit:a.unit, rateDay:rate.rate,
+                   reqDur:+reqDur.toFixed(2), givenWd:+givenWd.toFixed(2), varPct, flag});
+
+    // Time-phasing over the GIVEN window (Start + Finish, or Start + given duration)
+    if (!a.start) { noStart.push({...a, reason:"No Start date — P6 units & duration check produced, not in histograms"}); continue; }
+    let fin = a.fin;
+    if (!fin) {
+      if (givenWd == null) { noStart.push({...a, reason:"No Finish date or duration — P6 units & duration check produced, not in histograms"}); continue; }
+      fin = addWorkdays(a.start, Math.max(1, Math.ceil(givenWd)), cal);
+    }
+    if (givenWd == null) givenWd = workdays(a.start, fin, cal);
+    const spread = reqDur / Math.max(givenWd, 1);     // work content spread over the given window
+    const d = new Date(a.start);
+    while (d <= fin) {
+      if (isWorkday(d, cal)) {
+        const mk = mKey(d);
+        wdByMonth[mk] = wdByMonth[mk] || 0;
+        for (const [t,v] of Object.entries(rate.labour || {}))
+          (manDaysByMonthTrade[mk] = manDaysByMonthTrade[mk] || {})[t] = (manDaysByMonthTrade[mk][t] || 0) + v*spread;
+        for (const [t,v] of Object.entries(rate.equipment || {}))
+          (eqpDaysByMonthType[mk] = eqpDaysByMonthType[mk] || {})[t] = (eqpDaysByMonthType[mk][t] || 0) + v*spread;
+      }
+      d.setDate(d.getDate()+1);
+    }
+  }
+
+  // workdays per month across the whole window (for avg daily manpower)
+  const allMonths = [...new Set([...Object.keys(manDaysByMonthTrade), ...Object.keys(eqpDaysByMonthType)])].sort();
+  for (const mk of allMonths) {
+    const [y,m] = mk.split("-").map(Number);
+    const a = new Date(y, m-1, 1), b = new Date(y, m, 0);
+    wdByMonth[mk] = workdays(a, b, cal);
+  }
+
+  model = {allMonths, manDaysByMonthTrade, eqpDaysByMonthType, wdByMonth, assignments, durations,
+           unmatched, noQty, noStart, durVar, gapMapped, hrs, cal, tol};
+
+  // KPIs
+  // Total man-days from budgeted units (covers ALL loaded activities, dated or not)
+  const totMan = assignments.filter(x=>x.kind==="L").reduce((s,x)=>s+x.units,0) / hrs;
+  let peak = 0, peakM = "";
+  for (const mk of allMonths) {
+    const avg = Object.values(manDaysByMonthTrade[mk]||{}).reduce((x,y)=>x+y,0) / wdByMonth[mk];
+    if (avg > peak) { peak = avg; peakM = mLabel(mk); }
+  }
+  const nIss = unmatched.length + noQty.length + gapMapped.length;
+  document.getElementById("kTotal").textContent = activities.length;
+  document.getElementById("kIgnored").textContent = noCodeCount ? noCodeCount + " without code ignored" : "";
+  document.getElementById("kMatched").textContent = matched;
+  document.getElementById("kMatchedPct").textContent = (100*matched/activities.length).toFixed(1) + "% of activities";
+  document.getElementById("kUnmatched").textContent = nIss;
+  document.getElementById("kPeakMan").textContent = Math.round(peak);
+  document.getElementById("kPeakManM").textContent = peakM || "— no dated activities";
+  document.getElementById("kManDays").textContent = Math.round(totMan).toLocaleString();
+  const w = [];
+  if (durVar.length) {
+    const nS = durVar.filter(x=>x.flag==="SHORT").length, nL = durVar.length - nS;
+    w.push(`<b>${durVar.length}</b> activities have a given duration outside <b>±${tol}%</b> of the required time at 1 crew (Qty ÷ Rate) — <b>${nS} SHORT</b> (1 crew won't fit; add crews or extend) and <b>${nL} LONG</b> (idle allowance; check rate or logic). Listed in section 6 — nothing was adjusted.`);
+  }
+  if (noStart.length) w.push(`<b>${noStart.length}</b> matched activities lack Start and/or Finish/duration — P6 budgeted units and the duration check are still produced; they are just not in the histograms.`);
+  if (gapMapped.length) w.push(`<b>${gapMapped.length}</b> activities hit BG/UP mapping GAPs (no rate exists) — excluded, listed in section 6.`);
+  if (assignments.some(x => x.note)) w.push(`Some structures were matched via the <b>DRAFT</b> BG/UP mapping — confirm the mapping sheet before issuing.`);
+  document.getElementById("warnings").innerHTML = w.map(x => `<div class="warn">⚑ ${x}</div>`).join("");
+
+  drawChart("manChart", allMonths, manDaysByMonthTrade, wdByMonth, D.labourTypes, "man");
+  drawChart("eqpChart", allMonths, eqpDaysByMonthType, wdByMonth, D.equipmentTypes, "eqp");
+  renderFlags();
+  document.getElementById("results").classList.remove("hidden");
+});
+
+const PALETTE = ["#EF6925","#112528","#5B8A93","#D2600F","#7A8888","#FF724B","#355056","#C9A227","#8C5E58","#4F7942","#B0413E","#2B2E3C","#DCCEC2","#946B2D","#5B493C","#88A0A8","#603140"];
+let charts = {};
+function drawChart(id, months, data, wdM, types, key) {
+  const datasets = [];
+  types.forEach((t,i) => {
+    const vals = months.map(mk => +(((data[mk]||{})[t]||0) / wdM[mk]).toFixed(2));
+    if (vals.some(v => v > 0)) datasets.push({label:t, data:vals, backgroundColor:PALETTE[i % PALETTE.length], stack:"s"});
+  });
+  if (charts[key]) charts[key].destroy();
+  charts[key] = new Chart(document.getElementById(id), {
+    type:"bar",
+    data:{labels:months.map(mLabel), datasets},
+    options:{responsive:true, scales:{x:{stacked:true},y:{stacked:true,title:{display:true,text:"Avg daily nos."}}},
+      plugins:{legend:{position:"bottom",labels:{boxWidth:12,font:{size:10}}},
+      tooltip:{callbacks:{footer:items=>"Total: "+items.reduce((s,i)=>s+i.parsed.y,0).toFixed(1)}}}}
+  });
+}
+
+function tbl(rows, cols) {
+  if (!rows.length) return "<p class='small'>None.</p>";
+  let h = "<div class='scroll'><table><tr>" + cols.map(c=>`<th>${c[0]}</th>`).join("") + "</tr>";
+  for (const r of rows) h += "<tr>" + cols.map(c=>`<td>${r[c[1]] ?? ""}</td>`).join("") + "</tr>";
+  return h + "</table></div>";
+}
+function renderFlags() {
+  const m = model;
+  document.getElementById("flagTables").innerHTML =
+    `<h3 style="font-size:13px;margin:8px 0">Duration variance — given duration outside ±${m.tol}% of required at 1 crew (your call; nothing adjusted)</h3>` +
+    tbl(m.durVar, [["Activity ID","id"],["Name","name"],["Qty","qty"],["Unit","unit"],["Rate/day","rateDay"],["Required (wd, 1 crew)","reqDur"],["Given (wd)","givenWd"],["Variance %","varPct"],["Flag","flag"]]) +
+    `<h3 style="font-size:13px;margin:14px 0 0">Unmatched activities (no rate found — excluded)</h3>` +
+    tbl(m.unmatched, [["Activity ID","id"],["Name","name"],["BOQ","boq"],["Code","code"],["Reason","reason"]]) +
+    `<h3 style="font-size:13px;margin:14px 0 0">Mapping gaps (BG/UP code exists but no productivity rate — provide rates)</h3>` +
+    tbl(m.gapMapped, [["Activity ID","id"],["Name","name"],["BOQ","boq"],["Code","code"],["Reason","reason"]]) +
+    `<h3 style="font-size:13px;margin:14px 0 0">No quantity / level-of-effort</h3>` +
+    tbl(m.noQty, [["Activity ID","id"],["Name","name"],["Code","code"],["Reason","reason"]]) +
+    `<h3 style="font-size:13px;margin:14px 0 0">Missing dates/duration (P6 units &amp; duration check produced — not in histograms)</h3>` +
+    tbl(m.noStart, [["Activity ID","id"],["Name","name"],["Code","code"],["Reason","reason"]]);
+}
+
+// ---------- exports ----------
+const RES_IDS = {"Labour":"LAB","Carpenter":"CARP","Steel Fixer":"STLFX","Pipe Fitter":"PIPFT","Mason":"MASON","Electrician":"ELECT","Scaffolder":"SCAF","Grade Checker":"GRDCH",
+"Excavator":"EXCVR","Shovel":"SHOVL","Bob Cat":"BOBCT","PTR":"PTR","Paver":"PAVER","Roller":"ROLLR","Baby Roller":"BROLL","Plate Compactor":"PLCMP","Water Tanker":"WTANK",
+"Grader":"GRADR","Crane":"CRANE","Spray Tanker":"SPTNK","Piling Rig":"PILRG","Pile Cutting Machine":"PILCT","Dozer":"DOZER","TBM Machine":"TBM","Shoring Machine":"SHORM"};
+
+document.getElementById("dlP6").addEventListener("click", () => {
+  if (!model) return;
+  const wb = XLSX.utils.book_new();
+  const tr = [["task_id","rsrc_id","target_qty","remain_qty"],
+              ["Activity ID","Resource ID","Budgeted Units","Remaining Units"]];
+  for (const a of model.assignments) tr.push([a.task, RES_IDS[a.res] || a.res, a.units, a.units]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tr), "TASKRSRC");
+  const rs = [["rsrc_id","rsrc_name","rsrc_type"],["Resource ID","Resource Name","Resource Type"]];
+  const used = new Set(model.assignments.map(a => a.res));
+  for (const t of D.labourTypes) if (used.has(t)) rs.push([RES_IDS[t], t, "Labor"]);
+  for (const t of D.equipmentTypes) if (used.has(t)) rs.push([RES_IDS[t], t, "Nonlabor"]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rs), "RSRC");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["USERDATA"],["P6 Resource Loader export — units in hours ("+model.hrs+" hrs/day, "+model.cal+"-day calendar)"]]), "USERDATA");
+  XLSX.writeFile(wb, "P6_Import_TASKRSRC-" + stamp() + ".xls", {bookType:"xls"});
+});
+
+document.getElementById("dlHist").addEventListener("click", () => {
+  if (!model) return;
+  const wb = XLSX.utils.book_new();
+  const mk = model.allMonths;
+  const man = [["Trade", ...mk.map(mLabel)]];
+  for (const t of D.labourTypes) {
+    const row = mk.map(k => +(((model.manDaysByMonthTrade[k]||{})[t]||0)/model.wdByMonth[k]).toFixed(2));
+    if (row.some(v=>v>0)) man.push([t, ...row]);
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(man), "Manpower (avg daily)");
+  const eq = [["Equipment", ...mk.map(mLabel)]];
+  for (const t of D.equipmentTypes) {
+    const row = mk.map(k => +(((model.eqpDaysByMonthType[k]||{})[t]||0)/model.wdByMonth[k]).toFixed(2));
+    if (row.some(v=>v>0)) eq.push([t, ...row]);
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(eq), "Equipment (avg daily)");
+  XLSX.writeFile(wb, "Histogram_Data-" + stamp() + ".xlsx");
+});
+
+document.getElementById("dlIssues").addEventListener("click", () => {
+  if (!model) return;
+  const wb = XLSX.utils.book_new();
+  const add = (rows, cols, name) => {
+    const aoa = [cols.map(c=>c[0])];
+    for (const r of rows) aoa.push(cols.map(c=>r[c[1]] ?? ""));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
+  };
+  add(model.durVar, [["Activity ID","id"],["Name","name"],["Qty","qty"],["Unit","unit"],["Rate/day","rateDay"],["Required (wd, 1 crew)","reqDur"],["Given (wd)","givenWd"],["Variance %","varPct"],["Flag","flag"]], "Duration variance");
+  add(model.unmatched, [["Activity ID","id"],["Name","name"],["BOQ","boq"],["Code","code"],["Reason","reason"]], "Unmatched");
+  add(model.gapMapped, [["Activity ID","id"],["Name","name"],["BOQ","boq"],["Code","code"],["Reason","reason"]], "Mapping gaps");
+  add(model.noQty, [["Activity ID","id"],["Name","name"],["Code","code"],["Reason","reason"]], "No qty or LOE");
+  add(model.noStart, [["Activity ID","id"],["Name","name"],["Code","code"],["Reason","reason"]], "Missing dates-duration");
+  XLSX.writeFile(wb, "Issues_Register-" + stamp() + ".xlsx");
+});
+
+document.getElementById("dlDur").addEventListener("click", () => {
+  if (!model) return;
+  const wb = XLSX.utils.book_new();
+  const aoa = [["Activity ID","Activity Name","BOQ","Activity Code","Qty","Unit (input)","Unit (table)","Rate/day","Required (wd, 1 crew)","Given (wd)","Variance %","Flag","Note"]];
+  for (const r of model.durations)
+    aoa.push([r.id, r.name, r.boq, r.code, r.qty, r.unit, r.tblUnit, r.rateDay, r.reqDur, r.givenWd, r.varPct, r.flag, r.note]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Duration Check");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ["Basis"],
+    ["Input Duration / Start / Finish GOVERN — the tool never changes them. Methodology confirmed 02-Jul-26."],
+    ["Required (wd) = Qty ÷ Rate/day at ONE crew. Given (wd) = input Duration column, else workdays Start–Finish on the selected calendar."],
+    ["Flag 'SHORT' where Given < Required × (1 − tolerance): 1 crew cannot fit the window — add crews or extend, user's call."],
+    ["Flag 'LONG' where Given > Required × (1 + tolerance): idle allowance — check rate or logic, user's call. Nothing adjusted either way."],
+    ["Tolerance used: ±" + model.tol + "%."],
+    ["Budgeted units = crew make-up × Required (wd) × hrs/day — work content, per user's call 02-Jul-26."],
+    ["Rates: Consolidated_Productivity Rev 1 (02-Jul-26). P1 governs all conflicted services except MSE panel erection (P2, 15 panels/day)."]
+  ]), "Basis");
+  XLSX.writeFile(wb, "Duration_Check-" + stamp() + ".xlsx");
+});
+
+// Loading backup — full calculation chain with LIVE FORMULAS (auditable; one input updates the sheet)
+document.getElementById("dlBackup").addEventListener("click", () => {
+  if (!model) return;
+  const wb = XLSX.utils.book_new();
+  const ds = model.durations, col = XLSX.utils.encode_col;
+
+  // --- Calc Backup: A ID, B Name, C BOQ, D Code, E Qty, F Unit(in), G Unit(table), H Rate/day,
+  //                  I Source, J Ref, K Match, L Required(wd)=E/H, M Given(wd), N Var%=(M-L)/L*100, O Flag
+  const calc = [["Activity ID","Activity Name","BOQ","Activity Code","Qty","Unit (input)","Unit (table)","Rate/day","Source","Ref","Match route","Required (wd, 1 crew)","Given (wd)","Variance %","Flag"]];
+  ds.forEach(r => calc.push([r.id, r.name, r.boq, r.code, r.qty, r.unit, r.tblUnit, r.rateDay, r.src, r.ref, r.note || "direct", r.reqDur, r.givenWd, r.varPct, r.flag]));
+  const wsC = XLSX.utils.aoa_to_sheet(calc);
+  ds.forEach((r, i) => {
+    const n = i + 2;
+    wsC["L"+n] = {t:"n", v:r.reqDur, f:`E${n}/H${n}`};
+    if (r.givenWd !== "") wsC["N"+n] = {t:"n", v:r.varPct, f:`(M${n}-L${n})/L${n}*100`};
+  });
+  XLSX.utils.book_append_sheet(wb, wsC, "Calc Backup");
+
+  // --- Manpower / Equipment backups: crew make-up columns, then budgeted-hours columns (formulas)
+  const mkBackup = (types, key, sheetName) => {
+    const used = types.filter(t => ds.some(r => r[key] && r[key][t]));
+    if (!used.length) return;
+    const hdr = ["Activity ID", ...used.map(t => t + " (crew)"), ...used.map(t => t + " (hrs)")];
+    const aoa = [hdr];
+    ds.forEach(r => aoa.push([r.id, ...used.map(t => (r[key] && r[key][t]) || 0),
+                                    ...used.map(t => +((((r[key]||{})[t])||0) * r.reqDur * model.hrs).toFixed(2))]));
+    // totals row
+    aoa.push(["TOTAL", ...used.map(()=>null), ...used.map(()=>null)]);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const last = ds.length + 1, totRow = ds.length + 2;
+    ds.forEach((r, i) => {
+      const n = i + 2;
+      used.forEach((t, k) => {
+        const crewCol = col(1 + k), hrsCol = col(1 + used.length + k);
+        ws[hrsCol+n] = {t:"n", v:+((((r[key]||{})[t])||0) * r.reqDur * model.hrs).toFixed(2),
+                        f:`${crewCol}${n}*'Calc Backup'!$L${n}*Basis!$B$2`};
+      });
+    });
+    used.forEach((t, k) => {
+      const hrsCol = col(1 + used.length + k);
+      const v = ds.reduce((s,r)=>s+((((r[key]||{})[t])||0) * r.reqDur * model.hrs),0);
+      ws[hrsCol+totRow] = {t:"n", v:+v.toFixed(2), f:`SUM(${hrsCol}2:${hrsCol}${last})`};
+    });
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  };
+  mkBackup(D.labourTypes, "labour", "Manpower Backup");
+  mkBackup(D.equipmentTypes, "equipment", "Equipment Backup");
+
+  // --- Basis (input layer the formulas reference)
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ["Parameter","Value"],
+    ["Hours / day", model.hrs],
+    ["Calendar (days/week)", model.cal],
+    ["Tolerance ± %", model.tol],
+    ["Required (wd)", "= Qty ÷ Rate/day at ONE crew — live formula, column L of Calc Backup"],
+    ["Budgeted hrs", "= crew make-up × Required (wd) × hrs/day (Basis!B2) — live formulas in Manpower/Equipment Backup"],
+    ["Given Duration / Start / Finish", "From the input file — GOVERN, never changed by the tool"],
+    ["Flags", "SHORT / LONG where Given is outside Required × (1 ± tolerance) — flagged only, never adjusted"],
+    ["Rates", "Consolidated_Productivity Rev 1 (02-Jul-26) — P1 governs conflicts; exception: MSE panels 15/day (P2). 'via DRAFT mapping' rows need confirmation."],
+    ["Generated", stamp()]
+  ]), "Basis");
+
+  XLSX.writeFile(wb, "Loading_Backup-" + stamp() + ".xlsx");
+});
+
+function stamp(){const d=new Date();return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"2-digit"}).replace(/ /g,"-");}
+</script>
+</body>
+</html>
