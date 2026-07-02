@@ -1,9 +1,9 @@
 # P6 Resource Loader
 
 Client-side resource loading tool for Primavera P6 programmes (GCC roads & infrastructure).
-Upload an activity list (Excel) → get calculated durations at one crew (Qty ÷ Rate/day), manpower & equipment histograms, and a P6 TASKRSRC import sheet (.xls).
+Upload a scheduled activity list (Excel, with Duration/Start/Finish) → get time-phased manpower & equipment histograms, a duration check, and a P6 TASKRSRC import sheet (.xls).
 
-**Methodology (Rev 1):** duration (workdays) = Qty ÷ Rate/day at **one crew**. Any Finish dates/durations in the input are overridden by the calculation. Crews are added later manually in P6 only where compression is needed. Long durations are flagged (default >60 wd), never capped.
+**Methodology (Rev 2):** input Duration/Start/Finish **govern** — never changed. Budgeted units = crew make-up × (Qty ÷ Rate/day) × hrs/day — work content at **one crew**; histograms spread that content over the given Start–Finish window. Where the given duration is more than the tolerance (default 20%) shorter than the required time at 1 crew, the activity is flagged — never adjusted.
 
 **Productivity basis:** `Consolidated_Productivity-Rev_1-02-Jul-26.xlsx` — P1 governs all conflicted services, with one confirmed exception: MSE panel erection at 15 panels/day (P2). Skilled Labour merged into Labour. All source conflicts recorded in the workbook's Conflict Register.
 
@@ -25,7 +25,7 @@ Open `index.html` in any browser. No install, no server, no data leaves the mach
 1. Create a new repository on github.com (e.g. `p6-resource-loader`).
 2. Upload the contents of this folder (`index.html`, `tool.html`, `data/`).
    - Web UI: repo → **Add file → Upload files** → drag the files in → Commit.
-   - Or git: `git init && git add . && git commit -m "Rev 1" && git remote add origin <repo-url> && git push -u origin main`
+   - Or git: `git init && git add . && git commit -m "Rev 2" && git remote add origin <repo-url> && git push -u origin main`
 3. Repo → **Settings → Pages** → Source: **Deploy from a branch** → Branch: `main` / root → Save.
 4. Tool goes live at `https://<username>.github.io/p6-resource-loader/` within a minute or two.
 
@@ -35,10 +35,10 @@ Regenerate `data/productivity.js` from a revised consolidated workbook (single s
 
 ## Input format
 
-Excel activity list with: Activity ID, Activity Name, BOQ ref, Activity Code, Qty, Unit. **Start optional** (histograms only); Finish/durations not needed — overridden if present. Header row auto-detected; WBS band rows skipped; activities without an activity code ignored; P6 " A"/"*" date suffixes handled.
+Excel activity list with: Activity ID, Activity Name, BOQ ref, Activity Code, Qty, Unit, **Duration, Start, Finish**. Duration column governs the check (else derived from Start–Finish on the selected calendar); Start–Finish govern the histograms. Header row auto-detected; WBS band rows skipped; activities without an activity code ignored; P6 " A"/"*" date suffixes handled.
 
 ## Known limits
 
 - BG-*/UP-* codes match via a **DRAFT** mapping to Productivity 2 refs — tagged "confirm" in output; unmapped codes excluded with reason, never guessed.
-- Long durations at 1 crew are flagged (default threshold 60 workdays), never capped or smoothed silently.
+- Duration shortfalls (given > tolerance shorter than required at 1 crew, default 20%) are flagged, never adjusted or smoothed silently.
 - P6 import uses internal resource IDs (LAB, CARP, EXCVR…) — create matching resources in P6 or map on import.

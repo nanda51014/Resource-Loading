@@ -56,12 +56,12 @@ ul.clean li::before{content:"";position:absolute;left:2px;top:12px;width:8px;hei
 
 <div class="banner">
   <div class="brand">P6 <span>Resource Loader</span></div>
-  <div class="tag">Productivity-driven resource loading · Rev 1 · 02-Jul-26</div>
+  <div class="tag">Productivity-driven resource loading · Rev 2 · 02-Jul-26</div>
 </div>
 
 <div class="hero">
   <h1>From activity list to <em>loaded programme</em> in minutes — not days.</h1>
-  <p class="sub">A client-side tool for planning engineers. Upload an activity list, and get calculated durations at one crew (Qty ÷ Rate/day), manpower and equipment histograms, plus a ready-to-import P6 resource assignment sheet — all driven by the consolidated productivity table. Nothing is uploaded anywhere: everything runs in your browser.</p>
+  <p class="sub">A client-side tool for planning engineers. Upload your scheduled activity list (with durations and dates), and get time-phased manpower and equipment histograms, a duration check against the productivity table, plus a ready-to-import P6 resource assignment sheet. Your dates govern — nothing is re-sequenced. Nothing is uploaded anywhere: everything runs in your browser.</p>
   <a class="cta" href="tool.html">Open the Tool</a>
   <a class="cta ghost" href="#how">How it works</a>
 </div>
@@ -73,16 +73,16 @@ ul.clean li::before{content:"";position:absolute;left:2px;top:12px;width:8px;hei
     <h2>What it does</h2>
     <div class="grid3">
       <div class="card">
-        <h3>Calculated Durations (.xlsx)</h3>
-        <p>Duration per activity = Qty ÷ Rate/day at <b>one crew</b> — raw value and rounded-up whole workdays, ready for P6 original durations. Any durations or Finish dates in the input are overridden. Crews are added later in P6 only where compression is needed — your call.</p>
+        <h3>Duration Check (.xlsx)</h3>
+        <p>Your given duration vs the required duration at <b>one crew</b> (Qty ÷ Rate/day), with variance %. Given durations more than the tolerance (default 20%) shorter than required are <b>flagged</b> — 1 crew won't fit — never adjusted. Add crews or extend: your call, in P6.</p>
       </div>
       <div class="card">
         <h3>Manpower &amp; Equipment Histograms</h3>
-        <p>Monthly stacked histograms of average daily manpower (8 trades) and plant (17 types), time-phased from each activity's Start date over its calculated duration — so demand peaks are visible before mobilization.</p>
+        <p>Monthly stacked histograms of average daily manpower (8 trades) and plant (17 types), time-phased over each activity's <b>given Start–Finish window</b> at 1 crew's work content — demand peaks visible before mobilization.</p>
       </div>
       <div class="card">
         <h3>P6 Import Sheet (.xls)</h3>
-        <p>A TASKRSRC resource-assignment workbook in P6's native Excel import format — budgeted units per resource per activity = crew make-up × calculated duration × hours/day, at one crew. Import via File → Import → Spreadsheet.</p>
+        <p>A TASKRSRC resource-assignment workbook in P6's native Excel import format — budgeted units per resource per activity = crew make-up × (Qty ÷ Rate/day) × hours/day: work content at one crew. Import via File → Import → Spreadsheet.</p>
       </div>
     </div>
     <div class="notice">
@@ -95,24 +95,24 @@ ul.clean li::before{content:"";position:absolute;left:2px;top:12px;width:8px;hei
     <h2>How to use it</h2>
     <div class="steps">
       <div class="step">
-        <h3>Prepare the activity list (Excel)</h3>
-        <p>Activity ID, Name, BOQ code, Activity Code, Qty, Unit — <b>Start date optional</b> (used only to time-phase the histograms). No durations needed: the tool calculates them. Activities without an activity code are ignored.</p>
+        <h3>Schedule first, in P6</h3>
+        <p>Build activities, durations, logic and dates in P6 as usual, then export to Excel: Activity ID, Name, BOQ code, Activity Code, Qty, Unit, <b>Duration, Start, Finish</b>. Your dates and durations govern — the tool never changes them. Activities without an activity code are ignored.</p>
       </div>
       <div class="step">
         <h3>Upload to the tool &amp; set the calendar</h3>
-        <p>Choose 5/6/7-day week and hours per day (default: 6-day Mon–Sat, 8&nbsp;hrs — confirm per project). Set the long-duration flag threshold if different from 60 workdays.</p>
+        <p>Choose 5/6/7-day week and hours per day (default: 6-day Mon–Sat, 8&nbsp;hrs — confirm per project). Set the shortfall tolerance if different from 20%.</p>
       </div>
       <div class="step">
-        <h3>Durations calculated at one crew</h3>
-        <p>Duration (workdays) = Qty ÷ Rate/day at one crew. Any Finish dates or durations in the input are <b>overridden</b> by this calculation — the tool tells you how many. If a duration must be compressed later, add crews manually in P6.</p>
+        <h3>Duration check at one crew</h3>
+        <p>Required duration = Qty ÷ Rate/day at one crew, compared to your given duration (Duration column, else workdays Start–Finish). Where the given duration is more than the tolerance shorter than required, the activity is <b>flagged</b> — 1 crew won't fit; add crews or extend, your call.</p>
       </div>
       <div class="step">
         <h3>Review the flags</h3>
-        <p>The tool never smooths silently. Long durations (raw value shown), unmatched activity codes, mapping gaps, missing quantities and missing Start dates are all listed for your call before you export.</p>
+        <p>The tool never smooths silently. Duration shortfalls, unmatched activity codes, mapping gaps, missing quantities and missing dates are all listed for your call before you export.</p>
       </div>
       <div class="step">
         <h3>Download the four outputs</h3>
-        <p>Calculated durations (.xlsx), P6 TASKRSRC import (.xls), histogram data workbook (.xlsx), and the issues register (.xlsx) — file names carry the date for revision tracking.</p>
+        <p>Duration check (.xlsx), P6 TASKRSRC import (.xls), histogram data workbook (.xlsx), and the issues register (.xlsx) — file names carry the date for revision tracking.</p>
       </div>
     </div>
   </div>
@@ -128,11 +128,11 @@ ul.clean li::before{content:"";position:absolute;left:2px;top:12px;width:8px;hei
       <tr><td>Activity Code</td><td><code>RW-AS-B</code></td><td>Fallback match on code alone if BOQ pair not found.</td></tr>
       <tr><td>Qty</td><td>12,500.00</td><td>In the productivity table's unit for that code.</td></tr>
       <tr><td>Unit</td><td>m³</td><td>Checked against the table; mismatches flagged.</td></tr>
-      <tr><td>Start</td><td>01-Sep-26</td><td>Optional — used only to time-phase the histograms. P6 date formats accepted, including "A" / "*" suffixes.</td></tr>
-      <tr><td>Finish / durations</td><td>—</td><td>Not needed. If present, <b>overridden</b> by the calculated duration (Qty ÷ Rate at 1 crew).</td></tr>
+      <tr><td>Duration</td><td>45</td><td>Workdays. Governs the duration check; if absent, derived from Start–Finish on the selected calendar.</td></tr>
+      <tr><td>Start / Finish</td><td>01-Sep-26</td><td>Govern the histogram time-phasing — never changed. P6 date formats accepted, including "A" / "*" suffixes.</td></tr>
     </table>
     <div class="notice">
-      <strong>How durations &amp; loads are computed:</strong> duration (workdays) = Qty ÷ rate/day at <b>one crew</b>, rounded up to whole workdays for P6 (raw value shown for audit); budgeted units = crew make-up × raw duration × hrs/day. Long durations are flagged, never capped — splitting or adding crews is your decision, made in P6.
+      <strong>How loads &amp; the check are computed:</strong> budgeted units = crew make-up × (Qty ÷ rate/day) × hrs/day — work content at <b>one crew</b>; histograms spread that content over your given Start–Finish window. Required duration = Qty ÷ rate/day; given durations more than the tolerance (default 20%) shorter than required are flagged, never adjusted — adding crews or extending is your decision, made in P6.
     </div>
   </div>
 
@@ -143,6 +143,7 @@ ul.clean li::before{content:"";position:absolute;left:2px;top:12px;width:8px;hei
       <li>Bridge (BG-*) and underpass (UP-*) activity codes are matched through a <strong>DRAFT mapping</strong> to Productivity 2 references — every such match is tagged "confirm" in the output, and unmapped codes (e.g. BG CBB, UP CB) are excluded with a reason, never guessed.</li>
       <li>Rates come only from the two source sheets. Where a service had conflicting rates, <strong>P1 governs</strong> (confirmed 02-Jul-26), with one exception — MSE panel erection at 15 panels/day per P2. Every conflict is on record in the workbook.</li>
       <li>Utility relocation (UT-*) rates are for relocation of existing services — flagged as a distinct basis from new-build utility work.</li>
+      <li>Duration shortfalls (given duration more than the tolerance shorter than required at 1 crew) are flagged, never adjusted or smoothed silently.</li>
       <li>The P6 import uses internal resource IDs (LAB, CARP, EXCVR…) — create matching resources in P6 or map on import.</li>
     </ul>
   </div>
@@ -150,7 +151,7 @@ ul.clean li::before{content:"";position:absolute;left:2px;top:12px;width:8px;hei
 </div>
 
 <footer>
-  P6 <span>Resource Loader</span> · Rev 1, 02-Jul-26 · Durations at 1 crew (Qty ÷ Rate) · Runs fully client-side — no data leaves your machine.
+  P6 <span>Resource Loader</span> · Rev 2, 02-Jul-26 · Your dates govern · Loads = work content at 1 crew · Runs fully client-side — no data leaves your machine.
 </footer>
 
 </body>
